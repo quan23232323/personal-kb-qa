@@ -1,0 +1,57 @@
+# ===== Embedding 配置 =====
+embedding:
+  mode: local        # local | openai
+  local:
+    model_name: shibing624/text2vec-base-chinese
+    device: cpu
+    normalize_embeddings: true   # 输出归一化向量，配合 cosine 度量
+  openai:
+    api_key: ${OPENAI_API_KEY}   # 支持从环境变量读取，避免明文入库
+    base_url: https://api.openai.com/v1
+    model: text-embedding-ada-002
+
+# ===== LLM 配置 =====
+llm:
+  mode: openai       # openai | ollama
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    base_url: https://api.deepseek.com/v1
+    model: deepseek-chat
+    temperature: 0.7
+    max_tokens: 2000
+  ollama:
+    base_url: http://localhost:11434   # 代码中会自动补 /v1（OpenAI 兼容端点）
+    model: qwen2.5:7b
+    temperature: 0.7
+
+# ===== 检索配置 =====
+retrieval:
+  top_k: 5
+  similarity_threshold: 0.4   # 余弦相似度阈值（text2vec 分数偏低，0.4 召回更稳）
+  hybrid: true                # 混合检索：BM25 关键词 + 向量语义，RRF 融合；false 则仅向量
+  bm25_min_score: 1.0         # 关键词路绝对分数下限：仅关键词命中需达到此值，过滤弱匹配噪声
+  metric: cosine
+
+# ===== 文档处理配置 =====
+document:
+  chunk_size: 500
+  chunk_overlap: 50
+  supported_types: [pdf, txt, md, docx]
+  max_file_size_mb: 50
+
+# ===== 服务配置 =====
+server:
+  host: 127.0.0.1            # 默认仅本机访问；需局域网共享时改 0.0.0.0 并启用鉴权
+  port: 8000
+  cors_origins: ["http://localhost:5173"]   # Vite 开发服务器跨域白名单
+  serve_frontend: true       # 托管 frontend/dist（一键启动模式）；仅用 npm run dev 开发时可改 false
+
+# ===== 安全配置 =====
+security:
+  api_key: ""                # 留空则不启用；启用后前端需带 X-API-Key 请求头
+
+# ===== 存储配置 =====
+storage:
+  chroma_persist_dir: ./data/chroma
+  upload_dir: ./data/uploads
+  sqlite_path: ./data/kb.db
