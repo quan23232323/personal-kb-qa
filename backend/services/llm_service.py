@@ -55,3 +55,17 @@ def chat_stream(prompt: str):
     for chunk in stream:
         if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
+
+
+def chat_with_tools(messages: list[dict], tools: list[dict]) -> tuple[str | None, list | None]:
+    """非流式调用并携带工具定义，返回 (content, tool_calls)。
+
+    content 为普通文本回答（模型未调用工具时）；tool_calls 为模型请求调用的工具列表。
+    """
+    base_url, api_key, model, temperature, max_tokens = _llm_params()
+    client = _client(base_url, api_key)
+    kwargs = _build_kwargs(model, temperature, max_tokens, messages)
+    kwargs["tools"] = tools
+    resp = client.chat.completions.create(**kwargs)
+    msg = resp.choices[0].message
+    return msg.content, msg.tool_calls
