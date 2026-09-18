@@ -16,7 +16,7 @@ export default function DocumentUpload({ kbId, onUploaded }: Props) {
   const props: UploadProps = {
     multiple: true,
     fileList,
-    accept: '.pdf,.txt,.md,.docx',
+    accept: '.pdf,.txt,.md,.docx,.xlsx,.xls,.csv,.pptx',
     disabled: uploading,
     beforeUpload: () => false, // 阻止自动上传，改为手动批量提交
     onChange: ({ fileList }) => setFileList(fileList),
@@ -57,7 +57,9 @@ export default function DocumentUpload({ kbId, onUploaded }: Props) {
         <p className="ant-upload-text">
           {uploading ? '上传中…' : '点击或拖拽文件到此处（支持一次选择多个）'}
         </p>
-        <p className="ant-upload-hint">支持 PDF / TXT / Markdown / DOCX</p>
+        <p className="ant-upload-hint">
+          支持 PDF / TXT / Markdown / DOCX / XLSX / XLS / CSV / PPTX
+        </p>
       </Upload.Dragger>
       {fileList.length > 0 && (
         <Button

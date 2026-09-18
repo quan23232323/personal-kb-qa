@@ -1,7 +1,8 @@
 # ===== 核心依赖（轻量，先安装即可跑通骨架 / 知识库 CRUD）=====
-fastapi==0.115.0
+# 注意：fastapi/python-multipart/pypdf 需保持在上列修复了已知安全漏洞的版本
+fastapi==0.141.1
 uvicorn[standard]==0.30.0
-python-multipart==0.0.9
+python-multipart==0.0.32
 pydantic>=2.5
 pyyaml==6.0.2
 sse-starlette==2.1.0
@@ -17,12 +18,19 @@ chromadb>=0.5.5
 langchain>=0.3.0
 langchain-community>=0.3.0
 langchain-text-splitters>=0.3.0
-pypdf>=4.3.1
+pypdf>=6.16.1
 docx2txt>=0.8
 sentence-transformers>=3.0.1
+
+# ===== 多格式文档解析（office 表格/幻灯片，均为纯 Python 轻量库）=====
+openpyxl>=3.1.2      # xlsx
+xlrd>=2.0.1          # xls（旧版 Excel 二进制）
+python-pptx>=1.0.0   # pptx
 
 # ===== 混合检索（BM25 关键词路）=====
 rank-bm25==0.2.2
 
 # ===== 测试 =====
 pytest>=8.3.0
+xlwt>=1.3.0          # 测试中生成 .xls 夹具
+python-docx>=1.1.0   # 测试中生成 .docx 夹具

@@ -1,6 +1,9 @@
 """LLM 调用服务：支持 OpenAI 兼容 API 与本地 Ollama（OpenAI 兼容端点）。"""
 from config import config
 
+# 按 (base_url, api_key) 缓存客户端，避免每次请求都重建连接池
+_clients: dict[tuple[str, str], object] = {}
+
 
 def _llm_params() -> tuple:
     mode = config.get("llm.mode", "ollama")
@@ -25,9 +28,12 @@ def _llm_params() -> tuple:
 
 
 def _client(base_url: str, api_key: str):
-    from openai import OpenAI
+    key = (base_url, api_key)
+    if key not in _clients:
+        from openai import OpenAI
 
-    return OpenAI(base_url=base_url, api_key=api_key)
+        _clients[key] = OpenAI(base_url=base_url, api_key=api_key)
+    return _clients[key]
 
 
 def _build_kwargs(model, temperature, max_tokens, messages, stream=False) -> dict:
@@ -57,14 +63,22 @@ def chat_stream(prompt: str):
             yield chunk.choices[0].delta.content
 
 
-def chat_with_tools(messages: list[dict], tools: list[dict]) -> tuple[str | None, list | None]:
+def chat_with_tools(
+    messages: list[dict], tools: list[dict], temperature: float | None = None
+) -> tuple[str | None, list | None]:
     """非流式调用并携带工具定义，返回 (content, tool_calls)。
 
     content 为普通文本回答（模型未调用工具时）；tool_calls 为模型请求调用的工具列表。
+    temperature 不传时用配置默认值；路由决策等场景可传低温以稳定输出。
     """
-    base_url, api_key, model, temperature, max_tokens = _llm_params()
+    base_url, api_key, model, default_temperature, max_tokens = _llm_params()
     client = _client(base_url, api_key)
-    kwargs = _build_kwargs(model, temperature, max_tokens, messages)
+    kwargs = _build_kwargs(
+        model,
+        default_temperature if temperature is None else temperature,
+        max_tokens,
+        messages,
+    )
     kwargs["tools"] = tools
     resp = client.chat.completions.create(**kwargs)
     msg = resp.choices[0].message

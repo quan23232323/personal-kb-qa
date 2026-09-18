@@ -1,11 +1,14 @@
 """RAG 问答编排：会话/消息持久化、检索兜底、Prompt 构建、LLM 调用（含流式）。"""
 import json
+import logging
 import uuid
 
 from config import config
 from database import db
 from utils.time_utils import now_iso
 from . import embedding_service, llm_service, retrieval_service
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是一个知识库助手。请根据以下参考资料回答用户问题。
 如果参考资料中没有相关信息，请如实告知。
@@ -106,7 +109,10 @@ def _decide_retrieval(question: str, history: list[dict] | None = None) -> tuple
             messages.append({"role": role, "content": m.get("content", "")})
         messages.append({"role": "user", "content": question})
 
-        content, tool_calls = llm_service.chat_with_tools(messages, [SEARCH_TOOL, CLARIFY_TOOL])
+        content, tool_calls = llm_service.chat_with_tools(
+            messages, [SEARCH_TOOL, CLARIFY_TOOL],
+            temperature=config.get("llm.decision_temperature", 0.2),
+        )
         if tool_calls:
             tc = tool_calls[0]
             try:
@@ -259,13 +265,20 @@ def chat(kb_id: str, question: str, session_id: str | None) -> dict:
 
 
 def chat_stream(kb_id: str, question: str, session_id: str | None):
-    """SSE 生成器：任何异常统一转成 error 事件，避免流中断导致前端挂起。"""
+    """SSE 生成器：任何异常统一转成 error 事件，避免流中断导致前端挂起。
+
+    异常详情只进日志；发给前端的错误信息保持笼统，避免泄露内部实现。
+    """
     try:
         yield from _chat_stream_impl(kb_id, question, session_id)
-    except Exception as e:
+    except Exception:
+        logger.exception("流式问答处理异常 kb_id=%s question=%r", kb_id, question[:50])
         yield {
             "event": "error",
-            "data": json.dumps({"type": "error", "content": f"服务异常: {e}"}, ensure_ascii=False),
+            "data": json.dumps(
+                {"type": "error", "content": "服务内部错误，请查看后端日志"},
+                ensure_ascii=False,
+            ),
         }
 
 

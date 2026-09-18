@@ -5,6 +5,11 @@ from config import config
 
 _client = None
 
+# BM25 索引缓存：{kb_id: (chunk_count, ids, documents, metadatas, bm25)}。
+# 单进程内有效；任何写操作（加块/删块/删库）都会使对应 KB 的缓存失效，
+# 未命中时按 chunk_count 重建，因此缓存过期最多多算一次，不会返回旧数据。
+_bm25_cache: dict[str, tuple] = {}
+
 
 def get_client():
     global _client
@@ -39,6 +44,7 @@ def add_chunks(
         documents=texts,
         metadatas=[{"document_id": document_id, "document_name": document_name}] * len(ids),
     )
+    _bm25_cache.pop(kb_id, None)
 
 
 def delete_document_vectors(kb_id: str, document_id: str) -> None:
@@ -46,6 +52,8 @@ def delete_document_vectors(kb_id: str, document_id: str) -> None:
         _collection(kb_id).delete(where={"document_id": document_id})
     except Exception:
         pass
+    finally:
+        _bm25_cache.pop(kb_id, None)
 
 
 def delete_collection(kb_id: str) -> None:
@@ -53,6 +61,8 @@ def delete_collection(kb_id: str) -> None:
         get_client().delete_collection(f"kb_{kb_id}")
     except Exception:
         pass
+    finally:
+        _bm25_cache.pop(kb_id, None)
 
 
 def search(kb_id: str, query_embedding: list[float], top_k: int) -> list[dict]:
@@ -102,7 +112,8 @@ def _tokenize(text: str) -> list[str]:
 def bm25_search(kb_id: str, query: str, top_k: int) -> list[dict]:
     """BM25 关键词检索，返回 [{id, content, document_name, bm25_score}]。
 
-    从 Chroma 一次性取出该知识库全部 chunk 文本构建索引（个人知识库规模开销可忽略）。
+    从 Chroma 一次性取出该知识库全部 chunk 文本构建索引（个人知识库规模开销可忽略），
+    索引按 KB 缓存，写操作后自动失效重建。
     bm25_score 仅当 chunk 与查询共享至少一个词时为正值，否则为 0。
     """
     try:
@@ -114,17 +125,26 @@ def bm25_search(kb_id: str, query: str, top_k: int) -> list[dict]:
     count = col.count()
     if count == 0:
         return []
-    data = col.get(limit=count, include=["documents", "metadatas"])
-    ids = data.get("ids") or []
-    documents = data.get("documents") or []
-    metadatas = data.get("metadatas") or []
 
-    corpus = [_tokenize(doc or "") for doc in documents]
+    cached = _bm25_cache.get(kb_id)
+    if cached and cached[0] == count:
+        _, ids, documents, metadatas, bm25 = cached
+    else:
+        data = col.get(limit=count, include=["documents", "metadatas"])
+        ids = data.get("ids") or []
+        documents = data.get("documents") or []
+        metadatas = data.get("metadatas") or []
+
+        corpus = [_tokenize(doc or "") for doc in documents]
+        if not any(corpus):
+            return []
+        bm25 = BM25Okapi(corpus)
+        _bm25_cache[kb_id] = (count, ids, documents, metadatas, bm25)
+
     query_tokens = _tokenize(query)
-    if not query_tokens or not any(corpus):
+    if not query_tokens:
         return []
 
-    bm25 = BM25Okapi(corpus)
     scores = bm25.get_scores(query_tokens)
 
     results = []

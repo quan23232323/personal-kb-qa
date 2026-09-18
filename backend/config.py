@@ -8,7 +8,8 @@ import yaml
 
 BASE_DIR = Path(__file__).resolve().parent
 
-_ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+# 支持 ${VAR} 与 ${VAR:-默认值}（VAR 未设置时取默认值）
+_ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
 def _load_dotenv(path: Path | None = None) -> None:
@@ -32,9 +33,14 @@ def _load_dotenv(path: Path | None = None) -> None:
 
 
 def _expand_env(value: Any) -> Any:
-    """递归展开 ${ENV_VAR}，若环境变量不存在则保留原文。"""
+    """递归展开 ${VAR} / ${VAR:-默认值}，变量未设置或为空且无默认值时保留原文。"""
     if isinstance(value, str):
-        return _ENV_RE.sub(lambda m: os.environ.get(m.group(1), m.group(0)), value)
+        return _ENV_RE.sub(
+            lambda m: os.environ.get(m.group(1)) or (
+                m.group(2) if m.group(2) is not None else m.group(0)
+            ),
+            value,
+        )
     if isinstance(value, dict):
         return {k: _expand_env(v) for k, v in value.items()}
     if isinstance(value, list):

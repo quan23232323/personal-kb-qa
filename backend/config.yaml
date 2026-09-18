@@ -19,6 +19,8 @@ llm:
     model: deepseek-v4-pro
     temperature: 0.7
     max_tokens: 2000
+  # 决策调用的温度：路由判断（检索/澄清/闲聊）要稳定，用低温；回答仍用上面的 temperature
+  decision_temperature: 0.2
   ollama:
     base_url: http://localhost:11434   # 代码中会自动补 /v1（OpenAI 兼容端点）
     model: qwen2.5:7b
@@ -36,13 +38,13 @@ retrieval:
 document:
   chunk_size: 500
   chunk_overlap: 50
-  supported_types: [pdf, txt, md, docx]
+  supported_types: [pdf, txt, md, docx, xlsx, xls, csv, pptx]   # 旧版二进制 doc/ppt 不支持，需另存为新格式
   max_file_size_mb: 50
 
 # ===== 服务配置 =====
 server:
   host: 127.0.0.1            # 默认仅本机访问；需局域网共享时改 0.0.0.0 并启用鉴权
-  port: 8000
+  port: ${BACKEND_PORT:-8000}   # 可用环境变量 BACKEND_PORT 覆盖，无需改文件
   cors_origins: ["http://localhost:5173"]   # Vite 开发服务器跨域白名单
   serve_frontend: true       # 托管 frontend/dist（一键启动模式）；仅用 npm run dev 开发时可改 false
 

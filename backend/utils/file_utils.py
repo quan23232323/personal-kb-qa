@@ -2,12 +2,16 @@
 import re
 from pathlib import Path
 
-ALLOWED_EXTENSIONS = {"pdf", "txt", "md", "docx"}
+ALLOWED_EXTENSIONS = {"pdf", "txt", "md", "docx", "xlsx", "xls", "csv", "pptx"}
 
-# 每种类型对应的文件头魔数（txt/md 无可靠魔数，跳过）
+# 每种类型对应的文件头魔数（txt/md/csv 无可靠魔数，跳过）
+# docx/xlsx/pptx 均为 OOXML zip 容器，共享 PK 头；xls 为旧版 OLE 复合文档
 MAGIC_BYTES = {
     "pdf": [b"%PDF"],
     "docx": [b"PK\x03\x04"],
+    "xlsx": [b"PK\x03\x04"],
+    "pptx": [b"PK\x03\x04"],
+    "xls": [b"\xd0\xcf\x11\xe0"],
 }
 
 

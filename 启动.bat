@@ -31,7 +31,7 @@ if not exist "frontend\dist\index.html" (
 )
 
 echo [2/3] 正在启动服务（将弹出黑色窗口，请勿关闭）...
-start "PersonalKB-QA-Backend" /D "%~dp0backend" cmd /k ".venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000"
+start "PersonalKB-QA-Backend" /D "%~dp0backend" cmd /k ".venv\Scripts\python.exe run.py"
 
 echo [3/3] 稍候自动打开浏览器...
 timeout /t 4 /nobreak >nul

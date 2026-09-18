@@ -1,6 +1,6 @@
 # PersonalKB-QA — 个人知识库问答系统
 
-本地私有化部署的 RAG 知识库问答系统：上传文档（PDF/TXT/Markdown/DOCX）→ 解析分块 → 向量化 → 自然语言问答（流式输出 + 引用来源）。
+本地私有化部署的 RAG 知识库问答系统：上传文档（PDF/TXT/Markdown/DOCX/XLSX/XLS/CSV/PPTX）→ 解析分块 → 向量化 → 自然语言问答（流式输出 + 引用来源）。
 
 完整技术设计见 [`DESIGN.md`](./DESIGN.md)（v1.1 评审修订版）。
 
@@ -40,13 +40,28 @@ source .venv/bin/activate
 # 安装依赖
 pip install -r requirements.txt
 
-# 启动服务
+# 启动服务（推荐：自动读取 config.yaml 的 host/port，启动前检测端口占用）
+python run.py            # 开发时加 --reload
+# 或者直接用 uvicorn：
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 启动后访问：
 - 健康检查：http://127.0.0.1:8000/health
 - 接口文档（Swagger）：http://127.0.0.1:8000/docs
+
+> **端口**：默认 8000，可用环境变量覆盖而无需改配置文件：
+> ```bash
+> # CMD:      set BACKEND_PORT=8001
+> # Git Bash: BACKEND_PORT=8001 python run.py
+> ```
+> 若启动时提示端口被其他程序监听（如 Docker 容器端口映射），按提示换端口即可。
+
+> **运行测试**：后端核心逻辑（RRF 融合、决策分发、检索过滤、鉴权、API 封装）有单元测试：
+> ```bash
+> pip install pytest
+> pytest
+> ```
 
 > **依赖说明**：`requirements.txt` 中 RAG 重依赖（`torch` ~2GB、`chromadb`、`langchain`、`sentence-transformers`）体积较大。
 > 若只想先跑通骨架与知识库 CRUD，可只装轻量依赖：

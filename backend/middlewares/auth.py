@@ -1,4 +1,6 @@
 """可选 API Key 鉴权（纯 ASGI 中间件，兼容 SSE 流式响应）。"""
+import hmac
+
 from starlette.responses import JSONResponse
 
 from config import config
@@ -22,7 +24,9 @@ class ApiKeyMiddleware:
                     k.decode("latin-1").lower(): v.decode("latin-1")
                     for k, v in scope.get("headers", [])
                 }
-                if headers.get("x-api-key") != api_key:
+                supplied = headers.get("x-api-key", "")
+                # compare_digest 恒定时间比较，避免时序侧信道逐字节探测 key
+                if not hmac.compare_digest(supplied, api_key):
                     resp = JSONResponse(
                         status_code=401,
                         content={"code": 401, "data": None, "message": "API Key 无效"},

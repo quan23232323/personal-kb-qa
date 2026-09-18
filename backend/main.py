@@ -1,4 +1,5 @@
 """FastAPI 入口：注册路由、CORS、可选鉴权、统一异常处理。"""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,6 +13,11 @@ from middlewares.auth import ApiKeyMiddleware
 from models.common import fail
 from routers import chat, document, knowledge_base, system
 from services import document_service
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
+)
+logger = logging.getLogger("app")
 
 # 前端构建产物目录（backend/../frontend/dist），一键启动时由后端托管
 FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
@@ -51,7 +57,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(status_code=500, content=fail(f"服务器内部错误: {exc}", 500))
+    # 异常详情（可能含内部路径/配置）只进日志，不回传给客户端
+    logger.exception("未处理异常 %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content=fail("服务器内部错误，请查看后端日志", 500))
 
 
 app.include_router(knowledge_base.router)
