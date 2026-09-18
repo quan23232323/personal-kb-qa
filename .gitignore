@@ -28,3 +28,9 @@ vite.config.js.timestamp-*.mjs
 .idea/
 .vscode/
 .DS_Store
+
+# 本地助手工作目录（笔记 / 文档构建产物，不入库）
+.workbuddy/
+
+# 日志
+*.log
