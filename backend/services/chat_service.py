@@ -22,11 +22,29 @@ SYSTEM_PROMPT = """你是一个知识库助手。请根据以下参考资料回�
 
 NO_INFO_ANSWER = "知识库中暂无相关信息，无法回答该问题。"
 
+# 推理型模型会把 max_tokens 优先用于思维链，偶尔导致正文为空（finish_reason=length）。
+# 空回答比「不知道」更糟——用户只会以为系统坏了，因此统一兜底为一句可理解的提示。
+EMPTY_ANSWER_FALLBACK = "这次回答没能正常生成（生成可能被截断）。请再问一次，或把问题说得更具体一些。"
+
+
+def _ensure_answer(answer: str | None) -> str:
+    """把空字符串统一兜底，避免把空气泡展示给用户。"""
+    text = (answer or "").strip()
+    return text or EMPTY_ANSWER_FALLBACK
+
 # 检索决策（方案 A/B）：让 LLM 先判断问题如何处理——检索 / 澄清 / 直接回答
 DECISION_SYSTEM = """你是知识库问答助手的调度器，负责判断用户问题该如何处理：
 - 问题需要依据用户上传的文档、资料或私有内容回答时：调用 search_knowledge_base，query 填适合检索的关键词或问句。
 - 仅当问题完全缺少可检索的实体或关键词（如「那个」「它」等指代不明、且没有上下文）时：调用 ask_clarification 反问用户澄清。只要能提取到关键词就优先检索，不要过度澄清。
 - 闲聊、问候、常识、或与知识库无关的问题：不要调用工具，直接简短友好地回答。"""
+
+# 偏检索决策：知识库本身就是某个领域的资料集（例如一整本教科书、一套产品文档），
+# 用户问的「通用常识」往往正是库里的内容。此时若沿用上面的宽松规则，模型会凭先验
+# 直接作答、不给引用，知识库等于没用。该模式把「直接回答」收窄到真正的闲聊与实时信息。
+DECISION_SYSTEM_PREFER_SEARCH = """你是知识库问答助手的调度器，负责判断用户问题该如何处理：
+- 只要问题涉及任何可检索的主题、概念、术语或事实（包括你自认为已经掌握的通用知识），一律调用 search_knowledge_base，query 填适合检索的关键词或问句。用户选定了知识库，回答就应当以库内资料为依据。
+- 仅当问题完全缺少可检索的实体或关键词（如「那个」「它」等指代不明、且没有上下文）时：调用 ask_clarification 反问用户澄清。只要能提取到关键词就优先检索，不要过度澄清。
+- 只有纯粹的问候、闲聊、情绪表达，以及明确依赖实时信息的问题（如今天的天气、当前股价、最新新闻）才不调用工具，直接简短回答。"""
 
 SEARCH_TOOL = {
     "type": "function",
@@ -103,7 +121,12 @@ def _decide_retrieval(question: str, history: list[dict] | None = None) -> tuple
     action ∈ {'search', 'clarify', 'direct'}；search 的 payload 是检索词，clarify 的 payload 是澄清问题。
     """
     try:
-        messages = [{"role": "system", "content": DECISION_SYSTEM}]
+        system_prompt = (
+            DECISION_SYSTEM_PREFER_SEARCH
+            if config.get("retrieval.prefer_search", False)
+            else DECISION_SYSTEM
+        )
+        messages = [{"role": "system", "content": system_prompt}]
         for m in history or []:
             role = "assistant" if m.get("role") == "assistant" else "user"
             messages.append({"role": role, "content": m.get("content", "")})
@@ -252,7 +275,7 @@ def chat(kb_id: str, question: str, session_id: str | None) -> dict:
             sources = []
         else:
             try:
-                answer = llm_service.chat(_build_prompt(question, chunks, history))
+                answer = _ensure_answer(llm_service.chat(_build_prompt(question, chunks, history)))
             except Exception as e:
                 raise RuntimeError(f"LLM 调用失败: {e}")
             sources = _sources_from_chunks(chunks)
@@ -309,6 +332,10 @@ def _chat_stream_impl(kb_id: str, question: str, session_id: str | None):
                 collected.append(token)
                 yield {"event": "token", "data": json.dumps({"type": "token", "content": token}, ensure_ascii=False)}
             answer = "".join(collected).strip()
+            if not answer:
+                # 正文为空时要把兜底文案作为 token 补发，否则前端只会显示一个空气泡
+                answer = EMPTY_ANSWER_FALLBACK
+                yield {"event": "token", "data": json.dumps({"type": "token", "content": answer}, ensure_ascii=False)}
     else:
         answer = direct_answer or NO_INFO_ANSWER
         sources = []

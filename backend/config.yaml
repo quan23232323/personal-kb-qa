@@ -33,6 +33,10 @@ retrieval:
   hybrid: true                # 混合检索：BM25 关键词 + 向量语义，RRF 融合；false 则仅向量
   bm25_min_score: 1.0         # 关键词路绝对分数下限：仅关键词命中需达到此值，过滤弱匹配噪声
   metric: cosine
+  # 决策偏好：false = 常识类问题允许模型直接回答（不给引用）；
+  #           true  = 只要问题可能命中库内内容就强制检索。
+  # 当知识库本身是某个领域的完整资料集（教科书 / 产品手册）时建议开 true。
+  prefer_search: false
 
 # ===== 文档处理配置 =====
 document:
@@ -51,6 +55,16 @@ server:
 # ===== 安全配置 =====
 security:
   api_key: ""                # 留空则不启用；启用后前端需带 X-API-Key 请求头
+
+# ===== 演示模式护栏（公网 Demo 用，本地默认关闭）=====
+# 打开后会：限制单 IP 与全站每日提问次数、限制单次提问字数，
+# 并拒绝问答以外的所有写操作（上传/删除/新建）。详见 config.demo.yaml 与 README「公网部署」。
+demo:
+  enabled: false
+  per_ip_daily: 3
+  global_daily: 100
+  max_question_chars: 200
+  quota_db: ./data/demo_quota.db
 
 # ===== 存储配置 =====
 storage:

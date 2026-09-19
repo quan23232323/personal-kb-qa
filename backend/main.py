@@ -1,5 +1,6 @@
 """FastAPI 入口：注册路由、CORS、可选鉴权、统一异常处理。"""
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,23 +11,48 @@ from fastapi.responses import FileResponse, JSONResponse
 from config import BASE_DIR, config
 from database import init_db
 from middlewares.auth import ApiKeyMiddleware
+from middlewares.demo_guard import DemoWriteGuardMiddleware
 from models.common import fail
 from routers import chat, document, knowledge_base, system
-from services import document_service
+from services import document_service, embedding_service
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
 logger = logging.getLogger("app")
 
-# 前端构建产物目录（backend/../frontend/dist），一键启动时由后端托管
-FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
+# 前端构建产物目录
+# 默认按仓库布局取 backend/../frontend/dist；部署包若做扁平化，可用
+# server.frontend_dist（相对 backend/ 解析）指向包内路径，例如 ./frontend/dist
+_frontend_dist_cfg = config.get("server.frontend_dist")
+FRONTEND_DIST = (
+    config.resolve_path(_frontend_dist_cfg)
+    if _frontend_dist_cfg
+    else BASE_DIR.parent / "frontend" / "dist"
+)
+
+
+def _warm_up_embedding() -> None:
+    """后台线程预热 embedding 模型。
+
+    本地 ONNX 模型首次加载需要若干秒（若需下载则更久）。放在后台线程里，
+    端口可以立刻开始监听（云平台的健康检查不会超时），第一位访客也不用等。
+    """
+    def run():
+        try:
+            embedding_service.embed_one("预热")
+            logger.info("embedding 模型预热完成：%s", embedding_service.describe())
+        except Exception:
+            logger.exception("embedding 模型预热失败（首次提问时会自动重试）")
+
+    threading.Thread(target=run, name="warmup-embedding", daemon=True).start()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     document_service.reset_stale_processing()
+    _warm_up_embedding()
     yield
 
 
@@ -43,6 +69,9 @@ app.add_middleware(
 
 # 可选鉴权（纯 ASGI 中间件，兼容 SSE 流式响应）
 app.add_middleware(ApiKeyMiddleware)
+
+# 演示模式写操作闸门（demo.enabled=false 时形同虚设）
+app.add_middleware(DemoWriteGuardMiddleware)
 
 
 @app.exception_handler(HTTPException)

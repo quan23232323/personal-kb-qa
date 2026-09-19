@@ -1,0 +1,90 @@
+# ===== 公网演示环境配置（deploy 用）=====
+# 与本地 config.yaml 的差异只在这几处，代码完全相同：
+#   1. embedding 换用 fastembed（ONNX），避免云端安装 torch（约 2GB）
+#   2. 数据落在 data-demo/，与本地开发库物理隔离
+#   3. 打开 demo 护栏：问答限额 + 写操作白名单
+# 本地联调：set PKB_CONFIG=config.demo.yaml
+
+# ===== Embedding 配置 =====
+embedding:
+  # 本地开发用 local（text2vec，质量好）；部署用 fastembed（轻量）
+  mode: fastembed
+  fastembed:
+    # BAAI/bge-small-zh-v1.5：中文语义检索的常用小模型，ONNX 约 95MB
+    model_name: BAAI/bge-small-zh-v1.5
+    normalize_embeddings: true
+    cache_dir: ./.cache/fastembed   # 缓存在项目内（.cache 已 gitignore），可随包发布，避免容器每次冷启动下载
+  local:
+    model_name: shibing624/text2vec-base-chinese
+    device: cpu
+    normalize_embeddings: true
+  openai:
+    api_key: ${OPENAI_API_KEY}   # 支持从环境变量读取，避免明文入库
+    base_url: https://api.openai.com/v1
+    model: text-embedding-ada-002
+
+# ===== LLM 配置 =====
+llm:
+  mode: openai       # openai | ollama
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    base_url: https://api.deepseek.com/v1
+    # 演示环境用 flash：实测同样的 RAG 上下文，flash 12~15s、pro 22~31s，
+    # 访客等待时间减半；本地开发仍用 config.yaml 里的 pro。
+    model: deepseek-flash
+    temperature: 0.7
+    # 这两个模型都会先产出思维链（实测 reasoning 稳定在 1900~2400 tokens），
+    # 上限给到 2000 会把正文挤空——必须留足余量。
+    max_tokens: 4000
+  decision_temperature: 0.2
+  ollama:
+    base_url: http://localhost:11434
+    model: qwen2.5:7b
+    temperature: 0.7
+
+# ===== 检索配置 =====
+retrieval:
+  top_k: 5
+  # 以下两项按本演示库（21 篇 / 699 分块）实测标定：
+  #   相关问题的向量相似度 0.59~0.79，无关问题 ≤0.43 → 取 0.45 分界
+  #   BM25 为绝对分且随语料规模增长：相关问题 12~22，无关问题 ≤7.9 → 取 8.0 分界
+  similarity_threshold: 0.45
+  hybrid: true
+  bm25_min_score: 8.0
+  metric: cosine
+  # 演示库就是一整本 LLM 教科书，用户问的「通用知识」正是库里的内容；
+  # 开启偏检索决策，避免模型凭先验直答、不给引用（引用来源是这个 Demo 的主角）。
+  prefer_search: true
+
+# ===== 文档处理配置 =====
+document:
+  chunk_size: 500
+  chunk_overlap: 50
+  supported_types: [pdf, txt, md, docx, xlsx, xls, csv, pptx]
+  max_file_size_mb: 50
+
+# ===== 服务配置 =====
+server:
+  host: 127.0.0.1            # 云部署时由平台注入 PORT，run.py 会自动改绑 0.0.0.0
+  port: ${BACKEND_PORT:-8000}
+  cors_origins: ["http://localhost:5173"]
+  serve_frontend: true       # 后端一并托管 frontend/dist，单端口对外
+
+# ===== 安全配置 =====
+security:
+  api_key: ""                # 演示环境不设口令，靠 demo 护栏控制
+
+# ===== 演示模式护栏 =====
+# 公网 Demo 会消耗真实 LLM 额度，这三项是成本闸门；上传/删除等写操作自动被拒。
+demo:
+  enabled: true
+  per_ip_daily: 3            # 单个访客每天最多提问次数
+  global_daily: 100          # 全站每天总次数（即使 IP 被伪造也封顶成本）
+  max_question_chars: 200    # 单次提问字数上限
+  quota_db: ./data-demo/demo_quota.db
+
+# ===== 存储配置（与本地 data/ 隔离，避免污染开发数据）=====
+storage:
+  chroma_persist_dir: ./data-demo/chroma
+  upload_dir: ./data-demo/uploads
+  sqlite_path: ./data-demo/kb.db

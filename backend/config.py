@@ -70,7 +70,11 @@ class Config:
 
 
 def load_config(path: str | Path | None = None) -> Config:
+    # 允许用 PKB_CONFIG 指向另一份配置（如部署用的 config.demo.yaml），
+    # 相对路径按 backend/ 解析，这样同一套代码可以跑多套环境配置。
     target = Path(path) if path else BASE_DIR / "config.yaml"
+    if not target.is_absolute():
+        target = BASE_DIR / target
     with open(target, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     return Config(_expand_env(data))
@@ -78,4 +82,4 @@ def load_config(path: str | Path | None = None) -> Config:
 
 # 全局单例：模块导入即加载一次（先加载 .env，再展开 ${...}）
 _load_dotenv()
-config = load_config()
+config = load_config(os.environ.get("PKB_CONFIG") or None)

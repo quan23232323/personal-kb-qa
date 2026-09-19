@@ -1,17 +1,100 @@
 """启动入口：python run.py [--reload]
 
-- 读取 config.yaml 的 server.host/port（可用环境变量 BACKEND_PORT 覆盖端口）；
+- 监听地址解析优先级：云平台注入的 PORT（PaaS 约定，同时改为监听 0.0.0.0）
+  → BACKEND_PORT → config.yaml 的 server.host/port；
+- 启动前做一次依赖与应用导入自检，把「缺依赖」这类问题在前台报清楚；
 - 绑定前先检测端口占用，被占用时给出可操作的中文提示，
   而不是让 uvicorn 抛一屏英文绑定错误。
 """
 import argparse
+import importlib
+import os
 import socket
 import subprocess
 import sys
+import traceback
 
 import uvicorn
 
 from config import config
+
+# 运行时必需模块，用于启动自检。
+# 只列「真正会被导入」的：aiofiles 虽在 requirements.txt 里，但全项目无任何引用，
+# 列进来只会制造假警报（部署时已实测踩到过）。
+_REQUIRED_MODULES = [
+    "fastapi",
+    "uvicorn",
+    "starlette",
+    "pydantic",
+    "yaml",
+    "sse_starlette",
+    "openai",
+    "httpx",
+    "multipart",
+    "chromadb",
+    "rank_bm25",
+]
+
+
+def preflight() -> bool:
+    """导入自检：把「缺依赖 / 应用导入失败」变成一段可读的结论。
+
+    云平台通常只回传日志尾部，因此结论必须放在最后一行打印。
+    """
+    missing: list[str] = []
+    for mod in _REQUIRED_MODULES:
+        try:
+            importlib.import_module(mod)
+        except Exception as exc:
+            missing.append("%s (%s: %s)" % (mod, type(exc).__name__, exc))
+
+    ok = True
+    detail = ""
+    tb = ""
+    try:
+        importlib.import_module("main")
+    except Exception as exc:
+        ok = False
+        detail = "%s: %s" % (type(exc).__name__, exc)
+        tb = traceback.format_exc(limit=10)
+
+    print("[自检] Python %s" % sys.version.split()[0], file=sys.stderr)
+    print("[自检] 缺失依赖: %s" % (", ".join(missing) if missing else "无"), file=sys.stderr)
+    print("[自检] 应用导入: %s" % ("成功" if ok else "失败"), file=sys.stderr)
+    if not ok:
+        print(tb, file=sys.stderr)
+    print("[自检结论] %s" % ("一切正常" if ok and not missing else (detail or "缺少依赖 " + ", ".join(missing))), file=sys.stderr)
+    return ok and not missing
+
+
+def resolve_bind() -> tuple[str, int, bool]:
+    """返回 (host, port, 是否为云部署模式)。
+
+    云部署（Heroku / Render / Railway / 各类容器平台）统一注入 `PORT` 环境变量，
+    并要求服务监听 0.0.0.0 才能被反向代理访问。检测到 `PORT` 即切换为该约定，
+    本地开发仍走 config.yaml，行为不变。
+    """
+    host = config.get("server.host", "127.0.0.1")
+    port = int(config.get("server.port", 8000))
+
+    env_port = os.environ.get("PORT")
+    cloud = env_port is not None
+    if env_port is None:
+        env_port = os.environ.get("BACKEND_PORT")
+
+    if env_port:
+        try:
+            port = int(str(env_port).strip())
+        except ValueError:
+            print(f"[警告] 环境变量中的端口 {env_port!r} 不是整数，改用 {port}", file=sys.stderr)
+
+    if cloud:
+        # 平台通常还允许用 HOST 覆盖，默认 0.0.0.0（必须对所有网卡可见）
+        host = os.environ.get("HOST") or "0.0.0.0"
+    elif os.environ.get("HOST"):
+        host = os.environ["HOST"]
+
+    return host, port, cloud
 
 
 def _port_available(host: str, port: int) -> bool:
@@ -67,8 +150,11 @@ def main() -> None:
     parser.add_argument("--reload", action="store_true", help="代码变更自动重载（开发用）")
     args = parser.parse_args()
 
-    host = config.get("server.host", "127.0.0.1")
-    port = int(config.get("server.port", 8000))
+    host, port, cloud = resolve_bind()
+
+    # 自检放在端口检查之前：缺依赖时给出的是根因，而不是误导性的端口错误
+    if not preflight():
+        sys.exit(1)
 
     if not _port_available(host, port):
         print(f"[错误] 端口 {port} 已被占用，无法在 {host}:{port} 启动服务。\n", file=sys.stderr)
@@ -87,9 +173,23 @@ def main() -> None:
         )
         sys.exit(1)
 
-    _warn_port_overlap(port)
-    print(f"PersonalKB-QA 启动中：http://{host}:{port}  （/docs 查看接口文档）")
-    uvicorn.run("main:app", host=host, port=port, reload=args.reload)
+    if not cloud:
+        # netstat 为 Windows 专有命令，云环境（Linux 容器）无需也不适用
+        _warn_port_overlap(port)
+        print(f"PersonalKB-QA 启动中：http://{host}:{port}  （/docs 查看接口文档）")
+    else:
+        print(f"PersonalKB-QA 云部署模式启动：0.0.0.0:{port}（PORT 由平台注入）")
+
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=port,
+        reload=args.reload,
+        # 云部署经反向代理转发：信任 X-Forwarded-* 才能拿到真实访客 IP
+        # （演示模式的按 IP 限额依赖它；另有全站硬上限兜底，不惧伪造头）
+        proxy_headers=cloud,
+        forwarded_allow_ips="*" if cloud else None,
+    )
 
 
 if __name__ == "__main__":

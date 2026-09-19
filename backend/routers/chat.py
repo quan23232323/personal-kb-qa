@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from models.chat import ChatRequest
 from models.common import ok
-from services import chat_service, kb_service
+from services import chat_service, demo_service, kb_service
 
 router = APIRouter(tags=["chat"])
 
@@ -14,20 +14,22 @@ def _ensure_kb(kb_id: str):
 
 
 @router.post("/api/knowledge-bases/{kb_id}/chat")
-def chat(kb_id: str, body: ChatRequest):
+def chat(kb_id: str, body: ChatRequest, request: Request):
     _ensure_kb(kb_id)
     question = body.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
+    demo_service.check_and_consume(request, question)
     return ok(chat_service.chat(kb_id, question, body.session_id))
 
 
 @router.post("/api/knowledge-bases/{kb_id}/chat/stream")
-def chat_stream(kb_id: str, body: ChatRequest):
+def chat_stream(kb_id: str, body: ChatRequest, request: Request):
     _ensure_kb(kb_id)
     question = body.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
+    demo_service.check_and_consume(request, question)
     return EventSourceResponse(chat_service.chat_stream(kb_id, question, body.session_id))
 
 
