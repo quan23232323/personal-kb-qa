@@ -4,6 +4,30 @@
 
 完整技术设计见 [`DESIGN.md`](./DESIGN.md)（v1.1 评审修订版）。
 
+## 界面预览
+
+**问答：流式输出 + 引用来源可展开** —— 每条引用标注所属文档、相似度与命中方式（语义 / 关键词）
+
+![问答界面：引用来源展开](docs/images/chat.png)
+
+**文档管理：批量上传、解析状态与分块数一目了然**
+
+![文档管理界面](docs/images/documents.png)
+
+## 架构
+
+![架构总览](docs/images/architecture.svg)
+
+写入链路负责把文档变成可检索的向量与元数据；查询链路先做**意图决策**，再走**混合检索**——两路召回用 RRF 融合、按阈值过滤后，把片段与引用一起交给模型流式作答。
+
+| 关键环节 | 实现方式 |
+| --- | --- |
+| 混合检索 | 向量余弦召回 ∥ BM25 关键词召回 → **RRF 融合**（k=60）→ 相似度阈值 + 关键词分下限双重过滤 |
+| 防幻觉 | 提问先做**三元决策**：查知识库 / 反问澄清 / 直接回答。检索不到就如实说，不硬答 |
+| 多轮对话 | 决策与生成阶段均注入最近 6 条会话历史，解决「它 / 这个」类指代消解 |
+| 流式输出 | SSE 逐 token 推送；鉴权用**纯 ASGI 中间件**实现，避免缓冲破坏流式响应 |
+| 分块与向量 | 500 字 / 块、重叠 50 字；向量 L2 归一化后配合余弦度量，分数更可比 |
+
 ## 技术栈
 
 - **前端**：React 18 + TypeScript + Ant Design 5 + Vite
@@ -16,11 +40,18 @@
 ## 目录结构
 
 ```
-20260810201631/
-├── DESIGN.md          # 技术设计方案
+personal-kb-qa/
 ├── README.md
+├── LICENSE
+├── DESIGN.md          # 技术设计方案
+├── docs/images/       # README 配图（架构总览 / 界面截图）
 ├── backend/           # FastAPI 后端
-└── frontend/          # React 前端
+│   ├── routers/       # knowledge_base · document · chat · system
+│   ├── services/      # 文档解析 / 向量化 / 检索 / 对话 / LLM
+│   ├── models/        # 请求响应模型
+│   ├── middlewares/   # 可选 API Key 鉴权（纯 ASGI）
+│   └── tests/         # 单元测试（RRF 融合、决策分发、检索过滤、鉴权、API）
+└── frontend/          # React 前端（src/pages · components · api）
 ```
 
 ## 快速开始

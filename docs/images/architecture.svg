@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 872" width="1180" height="872" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8A97A8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1180" height="872" fill="#FFFFFF"/>
+  <text x="40" y="34" font-size="17" font-weight="700" fill="#111827">个人知识库问答系统 · 架构总览</text>
+  <text x="40" y="54" font-size="11.5" fill="#6B7280">PersonalKB-QA ｜ FastAPI + React 全链路 RAG：混合检索 · RRF 融合 · 防幻觉三元决策 · 流式输出</text>
+
+  <!-- 前端 -->
+  <rect x="40" y="72" width="1100" height="74" rx="10" fill="#EDF3FE" stroke="#4A8DF6" stroke-width="1.4"/>
+  <text x="62" y="99" font-size="13.5" font-weight="700" fill="#1E3A8A">前端 SPA · React 18 + TypeScript + Ant Design + Vite</text>
+  <text x="62" y="119" font-size="11.5" fill="#475569">知识库列表 ｜ 文档管理 ｜ 多轮问答　——　fetch + ReadableStream 自行解析 SSE，流式渲染回答与引用</text>
+
+  <path d="M 590 146 L 590 174" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="600" y="165" font-size="10.5" fill="#6B7280">REST / SSE</text>
+
+  <!-- 后端 -->
+  <rect x="40" y="176" width="1100" height="86" rx="10" fill="#F5F8FF" stroke="#93B4EC" stroke-width="1.4"/>
+  <text x="62" y="201" font-size="13.5" font-weight="700" fill="#1E40AF">FastAPI 应用层</text>
+  <text x="62" y="221" font-size="11.5" fill="#475569">中间件：可选 API Key 鉴权（纯 ASGI，不破坏 SSE）· CORS · 统一响应包装 · 全局异常兜底</text>
+  <text x="62" y="241" font-size="11.5" fill="#475569">路由：knowledge_base · document · chat · system　｜　services 五个领域模块　｜　tests 六个测试文件</text>
+
+  <path d="M 590 262 L 590 284 L 300 284 L 300 300" stroke="#8A97A8" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <path d="M 590 262 L 590 284 L 880 284 L 880 300" stroke="#8A97A8" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+
+  <!-- 左：写入链路 -->
+  <rect x="40" y="300" width="520" height="26" rx="6" fill="#E8F6EE" stroke="#4CAF7D" stroke-width="1.2"/>
+  <text x="56" y="318" font-size="12.5" font-weight="700" fill="#1B6B45">① 写入链路 · 文档入库</text>
+
+  <rect x="40" y="336" width="520" height="66" rx="9" fill="#F6FCF8" stroke="#7FC79E" stroke-width="1.2"/>
+  <text x="60" y="359" font-size="12.5" font-weight="600" fill="#14532D">文档解析</text>
+  <text x="60" y="378" font-size="11.5" fill="#475569">PDF / DOCX / XLSX / PPTX / CSV / MD / TXT 按扩展名分派解析器</text>
+  <text x="60" y="394" font-size="11.5" fill="#475569">魔数校验 + 大小上限 50MB + 解析失败明确回传原因</text>
+
+  <path d="M 300 402 L 300 420" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="40" y="422" width="520" height="58" rx="9" fill="#F6FCF8" stroke="#7FC79E" stroke-width="1.2"/>
+  <text x="60" y="445" font-size="12.5" font-weight="600" fill="#14532D">文本分块</text>
+  <text x="60" y="464" font-size="11.5" fill="#475569">RecursiveCharacterTextSplitter：500 字 / 块，重叠 50 字</text>
+
+  <path d="M 300 480 L 300 498" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="40" y="500" width="520" height="58" rx="9" fill="#F6FCF8" stroke="#7FC79E" stroke-width="1.2"/>
+  <text x="60" y="523" font-size="12.5" font-weight="600" fill="#14532D">本地向量化</text>
+  <text x="60" y="542" font-size="11.5" fill="#475569">text2vec-base-chinese（CPU）→ 池化后 L2 归一化，配合余弦度量</text>
+
+  <path d="M 300 558 L 300 576" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="40" y="578" width="520" height="58" rx="9" fill="#F6FCF8" stroke="#7FC79E" stroke-width="1.2"/>
+  <text x="60" y="601" font-size="12.5" font-weight="600" fill="#14532D">批量落库</text>
+  <text x="60" y="620" font-size="11.5" fill="#475569">向量写 ChromaDB；文档元数据与分块写 SQLite；原件留在 uploads</text>
+
+  <!-- 右：查询链路 -->
+  <rect x="620" y="300" width="520" height="26" rx="6" fill="#FDF1E5" stroke="#E8934A" stroke-width="1.2"/>
+  <text x="636" y="318" font-size="12.5" font-weight="700" fill="#9A4B0B">② 查询链路 · 提问作答</text>
+
+  <rect x="620" y="336" width="520" height="56" rx="9" fill="#FFF9F3" stroke="#EFB27C" stroke-width="1.2"/>
+  <text x="640" y="356" font-size="12.5" font-weight="600" fill="#7C2D12">三元决策（防幻觉第一道闸）</text>
+  <text x="640" y="375" font-size="11.5" fill="#475569">先判断意图：查知识库 / 反问澄清 / 直接回答（决策温度 0.2）</text>
+
+  <path d="M 880 392 L 880 410" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="620" y="412" width="520" height="62" rx="9" fill="#FFF9F3" stroke="#EFB27C" stroke-width="1.2"/>
+  <text x="640" y="433" font-size="12.5" font-weight="600" fill="#7C2D12">混合检索（Hybrid Search）</text>
+  <text x="640" y="452" font-size="11.5" fill="#475569">向量余弦召回　∥　BM25 关键词召回（含绝对分下限）</text>
+  <text x="640" y="468" font-size="11.5" fill="#475569">两路结果做 RRF 融合，再按相似度阈值与关键词分过滤</text>
+
+  <path d="M 880 474 L 880 492" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="620" y="494" width="520" height="56" rx="9" fill="#FFF9F3" stroke="#EFB27C" stroke-width="1.2"/>
+  <text x="640" y="514" font-size="12.5" font-weight="600" fill="#7C2D12">上下文拼接</text>
+  <text x="640" y="533" font-size="11.5" fill="#475569">Top-K = 5 个片段 + 最近 6 条会话历史（用于指代消解）</text>
+
+  <path d="M 880 550 L 880 568" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="620" y="570" width="520" height="56" rx="9" fill="#FFF9F3" stroke="#EFB27C" stroke-width="1.2"/>
+  <text x="640" y="590" font-size="12.5" font-weight="600" fill="#7C2D12">流式生成</text>
+  <text x="640" y="609" font-size="11.5" fill="#475569">DeepSeek（OpenAI 兼容接口），逐 token 推送，支持中断</text>
+
+  <path d="M 880 626 L 880 644" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="620" y="646" width="520" height="52" rx="9" fill="#FEF3EC" stroke="#E8934A" stroke-width="1.5"/>
+  <text x="640" y="668" font-size="12.5" font-weight="600" fill="#7C2D12">回答 + 引用来源</text>
+  <text x="640" y="687" font-size="11.5" fill="#475569">每条引用标注文档名、相似度、命中方式（语义 / 关键词）</text>
+
+  <!-- 存储层 -->
+  <rect x="40" y="722" width="1100" height="26" rx="6" fill="#F2EFFB" stroke="#8B7BC7" stroke-width="1.2"/>
+  <text x="56" y="740" font-size="12.5" font-weight="700" fill="#4C3D8F">③ 存储层</text>
+
+  <path d="M 300 636 L 300 722" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+  <path d="M 880 698 L 880 722" stroke="#8A97A8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="40" y="756" width="350" height="60" rx="9" fill="#F8F6FE" stroke="#A99CD9" stroke-width="1.2"/>
+  <text x="60" y="778" font-size="12.5" font-weight="600" fill="#3F3277">ChromaDB</text>
+  <text x="60" y="797" font-size="11.5" fill="#475569">向量持久化，余弦度量，按知识库分集合</text>
+
+  <rect x="415" y="756" width="350" height="60" rx="9" fill="#F8F6FE" stroke="#A99CD9" stroke-width="1.2"/>
+  <text x="435" y="778" font-size="12.5" font-weight="600" fill="#3F3277">SQLite（kb.db）</text>
+  <text x="435" y="797" font-size="11.5" fill="#475569">知识库 · 文档 · 会话 · 消息（含引用来源）</text>
+
+  <rect x="790" y="756" width="350" height="60" rx="9" fill="#F8F6FE" stroke="#A99CD9" stroke-width="1.2"/>
+  <text x="810" y="778" font-size="12.5" font-weight="600" fill="#3F3277">uploads/</text>
+  <text x="810" y="797" font-size="11.5" fill="#475569">原始文档按知识库分目录存放</text>
+
+  <!-- 图例 -->
+  <rect x="40" y="836" width="11" height="11" rx="3" fill="#E8F6EE" stroke="#4CAF7D"/>
+  <text x="58" y="846" font-size="11" fill="#6B7280">写入链路</text>
+  <rect x="130" y="836" width="11" height="11" rx="3" fill="#FDF1E5" stroke="#E8934A"/>
+  <text x="148" y="846" font-size="11" fill="#6B7280">查询链路</text>
+  <rect x="220" y="836" width="11" height="11" rx="3" fill="#F2EFFB" stroke="#8B7BC7"/>
+  <text x="238" y="846" font-size="11" fill="#6B7280">存储层</text>
+  <text x="1120" y="846" font-size="11" fill="#9CA3AF" text-anchor="end">检索期由查询链路反向读取存储层（图中省略回读箭头）</text>
+</svg>
