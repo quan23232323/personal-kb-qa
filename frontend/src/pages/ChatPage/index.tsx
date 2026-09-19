@@ -162,8 +162,10 @@ export default function ChatPage() {
     });
   };
 
+  // 高度取父容器 100%（Layout 的 Content 已是确定高度），
+  // 不再用 calc(100vh - 88px) 这种魔数——算错就会被撑出外层滚动条
   return (
-    <Row gutter={16} style={{ height: 'calc(100vh - 88px)' }}>
+    <Row gutter={16} style={{ height: '100%' }}>
       {/* 左侧会话栏 */}
       <Col flex="260px" style={{ height: '100%' }}>
         <Card styles={{ body: { height: '100%', padding: 12 } }} style={{ height: '100%' }}>
